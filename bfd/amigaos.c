@@ -664,7 +664,7 @@ parse_archive_units (
 		  if (bfd_bread (stabdata, stab_size, abfd) != stab_size)
 		    return FALSE;
 
-		  for (unsigned i = 0; i < stab_size; i += 12)
+		  {unsigned i; for (i = 0; i < stab_size; i += 12)
 		    {
 		      unsigned str_offset = bfd_getb32 (stabdata + i);
 		      char type = stabdata[i + 4];
@@ -698,7 +698,7 @@ parse_archive_units (
 		      nsyms->name = (char *) stabstrdata + str_offset;
 		      DPRINT(20,("sym: %s\n", nsyms->name));
 		      ++defsymcount;
-		    }
+		    }}
 		  bfd_seek (abfd, last_pos, SEEK_SET);
 		  stab_pos = stabstr_pos = 0;
 		}
@@ -2853,7 +2853,7 @@ amiga_slurp_symbol_table (
       if (bfd_bread (stabdata, astab->disk_size, abfd) != astab->disk_size)
 	return FALSE;
 
-      for (unsigned i = 0; i < astab->disk_size; i += 12)
+      {unsigned i; for (i = 0; i < astab->disk_size; i += 12)
 	{
 	  unsigned str_offset = bfd_getb32 (stabdata + i);
 	  char type = stabdata[i + 4];
@@ -2953,7 +2953,7 @@ amiga_slurp_symbol_table (
 	  asp->symbol.value = value;
 
 	  ++asp;
-	}
+	}}
     }
   return TRUE;
 }
