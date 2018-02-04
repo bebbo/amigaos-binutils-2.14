@@ -25,6 +25,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
 
 #include "opcode/m68k.h"
 
+#undef sprintf_vma
+#define sprintf_vma(b,n) sprintf(b,"%d",(int)n)
+
 /* Extra info to pass to the disassembler address printing function.  */
 struct objdump_disasm_info
 {
@@ -61,14 +64,14 @@ print_insn_arg PARAMS ((const char *, unsigned char *, unsigned char *,
 			bfd_vma, disassemble_info *));
 
 const char * const fpcr_names[] = {
-    "", "%fpiar", "%fpsr", "%fpiar/%fpsr", "%fpcr",
-    "%fpiar/%fpcr", "%fpsr/%fpcr", "%fpiar/%fpsr/%fpcr"
+    "", "fpiar", "fpsr", "fpiar/fpsr", "fpcr",
+    "fpiar/fpcr", "fpsr/fpcr", "fpiar/fpsr/fpcr"
 };
 
 static char *const reg_names[] = {
-    "%d0", "%d1", "%d2", "%d3", "%d4", "%d5", "%d6", "%d7",
-    "%a0", "%a1", "%a2", "%a3", "%a4", "%a5", "%a6", "%sp",
-    "%ps", "%pc"
+    "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7",
+    "a0", "a1", "a2", "a3", "a4", "a5", "a6", "sp",
+    "ps", "pc"
 };
 
 /* Sign-extend an (unsigned char). */
@@ -431,7 +434,7 @@ print_insn_m68k (memaddr, info)
   
   d = best->args;
 
-  /* We can the operands twice.  The first time we don't print anything,
+  /* We scan the operands twice.  The first time we don't print anything,
      but look for errors. */
 
   save_p = p;
@@ -461,7 +464,22 @@ print_insn_m68k (memaddr, info)
 
   d = best->args;
 
-  (*info->fprintf_func) (info->stream, "%s", best->name);
+  int bnl = strlen(best->name);
+  char c = best->name[bnl - 1];
+  if (strcmp("rts", best->name)
+      && strcmp("bfexts", best->name)
+      && strcmp("bfins", best->name)
+      && strcmp("cas", best->name)
+      && (c == 's' || c == 'w' || c == 'b' || c == 'l'))
+    {
+      static char b[32];
+      strcpy(b, best->name);
+      b[bnl - 1] = '.';
+      b[bnl] = c;
+      b[bnl + 1] = 0;
+      (*info->fprintf_func) (info->stream, "%s", b);
+    } else
+      (*info->fprintf_func) (info->stream, "%s", best->name);
 
   if (*d)
     (*info->fprintf_func) (info->stream, " ");
@@ -521,7 +539,7 @@ print_insn_arg (d, buffer, p0, addr, info)
       {
         (*info->fprintf_func)
 	  (info->stream,
-	   "%s@",
+	   "(%s)",
 	   reg_names[fetch_arg (buffer, place, 3, info) + 8]);
         break;
       }
@@ -534,42 +552,42 @@ print_insn_arg (d, buffer, p0, addr, info)
       }
 
     case 'C':
-      (*info->fprintf_func) (info->stream, "%%ccr");
+      (*info->fprintf_func) (info->stream, "ccr");
       break;
 
     case 'S':
-      (*info->fprintf_func) (info->stream, "%%sr");
+      (*info->fprintf_func) (info->stream, "sr");
       break;
 
     case 'U':
-      (*info->fprintf_func) (info->stream, "%%usp");
+      (*info->fprintf_func) (info->stream, "usp");
       break;
 
     case 'E':
-      (*info->fprintf_func) (info->stream, "%%acc");
+      (*info->fprintf_func) (info->stream, "acc");
       break;
 
     case 'G':
-      (*info->fprintf_func) (info->stream, "%%macsr");
+      (*info->fprintf_func) (info->stream, "macsr");
       break;
 
     case 'H':
-      (*info->fprintf_func) (info->stream, "%%mask");
+      (*info->fprintf_func) (info->stream, "mask");
       break;
 
     case 'J':
       {
 	static const struct { char *name; int value; } names[]
-	  = {{"%sfc", 0x000}, {"%dfc", 0x001}, {"%cacr", 0x002},
-	     {"%tc",  0x003}, {"%itt0",0x004}, {"%itt1", 0x005},
-             {"%dtt0",0x006}, {"%dtt1",0x007}, {"%buscr",0x008},
-	     {"%usp", 0x800}, {"%vbr", 0x801}, {"%caar", 0x802},
-	     {"%msp", 0x803}, {"%isp", 0x804},
+	  = {{"sfc", 0x000}, {"dfc", 0x001}, {"cacr", 0x002},
+	     {"tc",  0x003}, {"itt0",0x004}, {"itt1", 0x005},
+             {"dtt0",0x006}, {"dtt1",0x007}, {"buscr",0x008},
+	     {"usp", 0x800}, {"vbr", 0x801}, {"caar", 0x802},
+	     {"msp", 0x803}, {"isp", 0x804},
 
 	     /* Should we be calling this psr like we do in case 'Y'?  */
-	     {"%mmusr",0x805},
+	     {"mmusr",0x805},
 
-             {"%urp", 0x806}, {"%srp", 0x807}, {"%pcr", 0x808}};
+             {"urp", 0x806}, {"srp", 0x807}, {"pcr", 0x808}};
 
 	val = fetch_arg (buffer, place, 12, info);
 	for (regno = sizeof names / sizeof names[0] - 1; regno >= 0; regno--)
@@ -632,14 +650,14 @@ print_insn_arg (d, buffer, p0, addr, info)
     case 'r':
       regno = fetch_arg (buffer, place, 4, info);
       if (regno > 7)
-	(*info->fprintf_func) (info->stream, "%s@", reg_names[regno]);
+	(*info->fprintf_func) (info->stream, "(%s)", reg_names[regno]);
       else
-	(*info->fprintf_func) (info->stream, "@(%s)", reg_names[regno]);
+	(*info->fprintf_func) (info->stream, "(%s)", reg_names[regno]);
       break;
 
     case 'F':
       (*info->fprintf_func)
-	(info->stream, "%%fp%d",
+	(info->stream, "fp%d",
 	 fetch_arg (buffer, place, 3, info));
       break;
 
@@ -653,13 +671,13 @@ print_insn_arg (d, buffer, p0, addr, info)
 
     case '+':
       (*info->fprintf_func)
-	(info->stream, "%s@+",
+	(info->stream, "(%s)+",
 	 reg_names[fetch_arg (buffer, place, 3, info) + 8]);
       break;
 
     case '-':
       (*info->fprintf_func)
-	(info->stream, "%s@-",
+	(info->stream, "-(%s)",
 	 reg_names[fetch_arg (buffer, place, 3, info) + 8]);
       break;
 
@@ -734,8 +752,8 @@ print_insn_arg (d, buffer, p0, addr, info)
     case 'd':
       val = NEXTWORD (p);
       (*info->fprintf_func)
-	(info->stream, "%s@(%d)",
-	 reg_names[fetch_arg (buffer, place, 3, info) + 8], val);
+	(info->stream, "%d(%s)", val,
+	 reg_names[fetch_arg (buffer, place, 3, info) + 8]);
       break;
 
     case 's':
@@ -793,26 +811,27 @@ print_insn_arg (d, buffer, p0, addr, info)
 	  break;
 
 	case 2:
-	  (*info->fprintf_func) (info->stream, "%s@", regname);
+	  (*info->fprintf_func) (info->stream, "(%s)", regname);
 	  break;
 
 	case 3:
-	  (*info->fprintf_func) (info->stream, "%s@+", regname);
+	  (*info->fprintf_func) (info->stream, "(%s)+", regname);
 	  break;
 
 	case 4:
-	  (*info->fprintf_func) (info->stream, "%s@-", regname);
+	  (*info->fprintf_func) (info->stream, "-(%s)", regname);
 	  break;
 
 	case 5:
 	  val = NEXTWORD (p);
 	  if (dump_baserel)
 	    {
+	      (*info->fprintf_func) (info->stream, "(");
 	      print_base(regno, val, info);
 	      (*info->fprintf_func) (info->stream, ")");
 	    }
 	  else
-	    (*info->fprintf_func) (info->stream, "%s@(%d)", regname, val);
+	    (*info->fprintf_func) (info->stream, "%d(%s)", val, regname);
 	  break;
 
 	case 6:
@@ -850,9 +869,8 @@ print_insn_arg (d, buffer, p0, addr, info)
 
 	    case 2:
 	      val = NEXTWORD (p);
-	      (*info->fprintf_func) (info->stream, "%%pc@(");
 	      (*info->print_address_func) (addr + val, info);
-	      (*info->fprintf_func) (info->stream, ")");
+	      (*info->fprintf_func) (info->stream, "(pc)");
 	      break;
 
 	    case 3:
@@ -977,12 +995,12 @@ print_insn_arg (d, buffer, p0, addr, info)
 		  if (doneany)
 		    (*info->fprintf_func) (info->stream, "/");
 		  doneany = 1;
-		  (*info->fprintf_func) (info->stream, "%%fp%d", regno);
+		  (*info->fprintf_func) (info->stream, "fp%d", regno);
 		  first_regno = regno;
 		  while (val & (1 << (regno + 1)))
 		    ++regno;
 		  if (regno > first_regno)
-		    (*info->fprintf_func) (info->stream, "-%%fp%d", regno);
+		    (*info->fprintf_func) (info->stream, "-fp%d", regno);
 		}
 	  }
 	else if (place == '8')
@@ -1010,24 +1028,24 @@ print_insn_arg (d, buffer, p0, addr, info)
 	char *name = 0;
 	switch (val)
 	  {
-	  case 2: name = "%tt0"; break;
-	  case 3: name = "%tt1"; break;
-	  case 0x10: name = "%tc"; break;
-	  case 0x11: name = "%drp"; break;
-	  case 0x12: name = "%srp"; break;
-	  case 0x13: name = "%crp"; break;
-	  case 0x14: name = "%cal"; break;
-	  case 0x15: name = "%val"; break;
-	  case 0x16: name = "%scc"; break;
-	  case 0x17: name = "%ac"; break;
- 	  case 0x18: name = "%psr"; break;
-	  case 0x19: name = "%pcsr"; break;
+	  case 2: name = "tt0"; break;
+	  case 3: name = "tt1"; break;
+	  case 0x10: name = "tc"; break;
+	  case 0x11: name = "drp"; break;
+	  case 0x12: name = "srp"; break;
+	  case 0x13: name = "crp"; break;
+	  case 0x14: name = "cal"; break;
+	  case 0x15: name = "val"; break;
+	  case 0x16: name = "scc"; break;
+	  case 0x17: name = "ac"; break;
+ 	  case 0x18: name = "psr"; break;
+	  case 0x19: name = "pcsr"; break;
 	  case 0x1c:
 	  case 0x1d:
 	    {
 	      int break_reg = ((buffer[3] >> 2) & 7);
 	      (*info->fprintf_func)
-		(info->stream, val == 0x1c ? "%%bad%d" : "%%bac%d",
+		(info->stream, val == 0x1c ? "bad%d" : "bac%d",
 		 break_reg);
 	    }
 	    break;
@@ -1043,9 +1061,9 @@ print_insn_arg (d, buffer, p0, addr, info)
       {
 	int fc = fetch_arg (buffer, place, 5, info);
 	if (fc == 1)
-	  (*info->fprintf_func) (info->stream, "%%dfc");
+	  (*info->fprintf_func) (info->stream, "dfc");
 	else if (fc == 0)
-	  (*info->fprintf_func) (info->stream, "%%sfc");
+	  (*info->fprintf_func) (info->stream, "sfc");
 	else
 	  /* xgettext:c-format */
 	  (*info->fprintf_func) (info->stream, _("<function code %d>"), fc);
@@ -1053,7 +1071,7 @@ print_insn_arg (d, buffer, p0, addr, info)
       break;
 
     case 'V':
-      (*info->fprintf_func) (info->stream, "%%val");
+      (*info->fprintf_func) (info->stream, "val");
       break;
 
     case 't':
@@ -1249,7 +1267,7 @@ print_indexed (basereg, p, addr, info)
      disassemble_info *info;
 {
   register int word;
-  static char *const scales[] = { "", ":2", ":4", ":8" };
+  static char *const scales[] = { "", "*2", "*4", "*8" };
   bfd_vma base_disp;
   bfd_vma outer_disp;
   char buf[40];
@@ -1259,7 +1277,7 @@ print_indexed (basereg, p, addr, info)
 
   /* Generate the text for the index register.
      Where this will be output is not yet determined.  */
-  sprintf (buf, "%s:%c%s",
+  sprintf (buf, "%s.%c%s",
 	   reg_names[(word >> 12) & 0xf],
 	   (word & 0x800) ? 'l' : 'w',
 	   scales[(word >> 9) & 3]);
@@ -1273,6 +1291,7 @@ print_indexed (basereg, p, addr, info)
 	base_disp -= 0x100;
       if (basereg == -1)
 	base_disp += addr;
+      (*info->fprintf_func) (info->stream, "(");
       print_base (basereg, base_disp, info);
       (*info->fprintf_func) (info->stream, ",%s)", buf);
       return p;
@@ -1306,6 +1325,7 @@ print_indexed (basereg, p, addr, info)
 
   if ((word & 7) == 0)
     {
+      (*info->fprintf_func) (info->stream, "(");
       print_base (basereg, base_disp, info);
       if (buf[0] != '\0')
 	(*info->fprintf_func) (info->stream, ",%s", buf);
@@ -1325,6 +1345,7 @@ print_indexed (basereg, p, addr, info)
       outer_disp = NEXTLONG (p);
     }
 
+  (*info->fprintf_func) (info->stream, "([");
   print_base (basereg, base_disp, info);
   if ((word & 4) == 0 && buf[0] != '\0')
     {
@@ -1332,9 +1353,10 @@ print_indexed (basereg, p, addr, info)
       buf[0] = '\0';
     }
   sprintf_vma (vmabuf, outer_disp);
-  (*info->fprintf_func) (info->stream, ")@(%s", vmabuf);
+  (*info->fprintf_func) (info->stream, "]");
   if (buf[0] != '\0')
     (*info->fprintf_func) (info->stream, ",%s", buf);
+  (*info->fprintf_func) (info->stream, ",%s", vmabuf);
   (*info->fprintf_func) (info->stream, ")");
 
   return p;
@@ -1351,19 +1373,12 @@ print_base (regno, disp, info)
 {
   if (regno == -1)
     {
-      (*info->fprintf_func) (info->stream, "%%pc@(");
       (*info->print_address_func) (disp, info);
+      (*info->fprintf_func) (info->stream, ",pc");
     }
   else
     {
       char buf[50];
-
-      if (regno == -2)
-	(*info->fprintf_func) (info->stream, "@(");
-      else if (regno == -3)
-	(*info->fprintf_func) (info->stream, "%%zpc@(");
-      else
-	(*info->fprintf_func) (info->stream, "%s@(", reg_names[regno]);
 
       /* Dump the symbol instead of the number*/
       if (dump_baserel && regno == 12)
@@ -1391,6 +1406,14 @@ print_base (regno, disp, info)
 	  sprintf_vma (buf, disp);
           (*info->fprintf_func) (info->stream, "%s", buf);
 	}
+
+      if (regno == -2)
+	(*info->fprintf_func) (info->stream, "");
+      else if (regno == -3)
+	(*info->fprintf_func) (info->stream, ",zpc");
+      else
+	(*info->fprintf_func) (info->stream, ",%s", reg_names[regno]);
+
     }
 }
 

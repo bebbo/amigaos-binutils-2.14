@@ -48,6 +48,7 @@ static int exit_status = 0;
 
 static char *default_target = NULL;	/* Default at runtime.  */
 
+static int asm_pure = 0;                /* -A */
 static int show_version = 0;		/* Show the version number.  */
 static int dump_section_contents;	/* -s */
 static int dump_section_headers;	/* -h */
@@ -197,6 +198,7 @@ usage (stream, status)
   fprintf (stream, _(" Display information from object <file(s)>.\n"));
   fprintf (stream, _(" At least one of the following switches must be given:\n"));
   fprintf (stream, _("\
+  -A, --asm-pure           Display pure assembler without line number and data\n\
   -a, --archive-headers    Display archive header information\n\
   -f, --file-headers       Display the contents of the overall file header\n\
   -p, --private-headers    Display object format specific file header contents\n\
@@ -261,6 +263,7 @@ static struct option long_options[]=
 {
   {"adjust-vma", required_argument, NULL, OPTION_ADJUST_VMA},
   {"all-headers", no_argument, NULL, 'x'},
+  {"asm-pure", no_argument, NULL, 'A'},
   {"private-headers", no_argument, NULL, 'p'},
   {"architecture", required_argument, NULL, 'm'},
   {"archive-headers", no_argument, NULL, 'a'},
@@ -816,13 +819,14 @@ objdump_print_addr_with_sym (abfd, sec, sym, vma, info, skip_zeroes)
      struct disassemble_info *info;
      bfd_boolean skip_zeroes;
 {
-  objdump_print_value (vma, info, skip_zeroes);
+  if (!asm_pure)
+    objdump_print_value (vma, info, skip_zeroes);
 
   if (sym == NULL)
     {
       bfd_vma secaddr;
 
-      (*info->fprintf_func) (info->stream, " <%s",
+      (*info->fprintf_func) (info->stream, asm_pure ? "%s" : "<%s",
 			     bfd_get_section_name (abfd, sec));
       secaddr = bfd_get_section_vma (abfd, sec);
       if (vma < secaddr)
@@ -835,11 +839,13 @@ objdump_print_addr_with_sym (abfd, sec, sym, vma, info, skip_zeroes)
 	  (*info->fprintf_func) (info->stream, "+0x");
 	  objdump_print_value (vma - secaddr, info, TRUE);
 	}
-      (*info->fprintf_func) (info->stream, ">");
+      if (!asm_pure)
+	(*info->fprintf_func) (info->stream, ">");
     }
   else
     {
-      (*info->fprintf_func) (info->stream, " <");
+      if (!asm_pure)
+	(*info->fprintf_func) (info->stream, "<");
       objdump_print_symname (abfd, info, sym);
       if (bfd_asymbol_value (sym) > vma)
 	{
@@ -851,7 +857,8 @@ objdump_print_addr_with_sym (abfd, sec, sym, vma, info, skip_zeroes)
 	  (*info->fprintf_func) (info->stream, "+0x");
 	  objdump_print_value (vma - bfd_asymbol_value (sym), info, TRUE);
 	}
-      (*info->fprintf_func) (info->stream, ">");
+      if (!asm_pure)
+	(*info->fprintf_func) (info->stream, ">");
     }
 }
 
@@ -1219,7 +1226,7 @@ disassemble_bytes (info, disassemble_fn, insns, data,
      zeroes in chunks of 4, ensuring that there is always a leading
      zero remaining.  */
   skip_addr_chars = 0;
-  if (! prefix_addresses)
+  if (! prefix_addresses && !asm_pure)
     {
       char buf[30];
       char *s;
@@ -1285,25 +1292,27 @@ disassemble_bytes (info, disassemble_fn, insns, data,
 	       when calling show_line.  */
 	    show_line (aux->abfd, section, addr_offset - adjust_section_vma);
 
-	  if (! prefix_addresses)
+	  if (!asm_pure)
 	    {
-	      char *s;
+	      if (! prefix_addresses)
+		{
+		  char *s;
 
-	      bfd_sprintf_vma (aux->abfd, buf, section->vma + addr_offset);
-	      for (s = buf + skip_addr_chars; *s == '0'; s++)
-		*s = ' ';
-	      if (*s == '\0')
-		*--s = '0';
-	      printf ("%s:\t", buf + skip_addr_chars);
+		  bfd_sprintf_vma (aux->abfd, buf, section->vma + addr_offset);
+		  for (s = buf + skip_addr_chars; *s == '0'; s++)
+		    *s = ' ';
+		  if (*s == '\0')
+		    *--s = '0';
+		  printf ("%s:\t", buf + skip_addr_chars);
+		}
+	      else
+		{
+		  aux->require_sec = TRUE;
+		  objdump_print_address (section->vma + addr_offset, info);
+		  aux->require_sec = FALSE;
+		  putchar (' ');
+		}
 	    }
-	  else
-	    {
-	      aux->require_sec = TRUE;
-	      objdump_print_address (section->vma + addr_offset, info);
-	      aux->require_sec = FALSE;
-	      putchar (' ');
-	    }
-
 	  if (insns)
 	    {
 	      sfile.size = 120;
@@ -1345,6 +1354,9 @@ disassemble_bytes (info, disassemble_fn, insns, data,
 #endif
 	      info->flags = 0;
 
+	      if (asm_pure)
+		printf("\t");
+
 	      octets = (*disassemble_fn) (section->vma + addr_offset, info);
 	      info->fprintf_func = (fprintf_ftype) fprintf;
 	      info->stream = stdout;
@@ -1376,9 +1388,9 @@ disassemble_bytes (info, disassemble_fn, insns, data,
 	      buf[j - addr_offset * opb] = '\0';
 	    }
 
-	  if (prefix_addresses
+	  if (!asm_pure && (prefix_addresses
 	      ? show_raw_insn > 0
-	      : show_raw_insn >= 0)
+	      : show_raw_insn >= 0))
 	    {
 	      bfd_vma j;
 
@@ -1434,9 +1446,9 @@ disassemble_bytes (info, disassemble_fn, insns, data,
 	      free (sfile.buffer);
 	    }
 
-	  if (prefix_addresses
+	  if (!asm_pure && (prefix_addresses
 	      ? show_raw_insn > 0
-	      : show_raw_insn >= 0)
+	      : show_raw_insn >= 0))
 	    {
 	      while (pb < octets)
 		{
@@ -2647,7 +2659,7 @@ main (argc, argv)
   bfd_init ();
   set_default_bfd_target ();
 
-  while ((c = getopt_long (argc, argv, "pib:m:M:VvCdDlfaHhrRtTxsSj:wE:zgG",
+  while ((c = getopt_long (argc, argv, "Apib:m:M:VvCdDlfaHhrRtTxsSj:wE:zgG",
 			   long_options, (int *) 0))
 	 != EOF)
     {
@@ -2655,6 +2667,9 @@ main (argc, argv)
 	{
 	case 0:
 	  break;		/* We've been given a long option.  */
+	case 'A':
+	  asm_pure = TRUE;
+	  break;
 	case 'm':
 	  machine = optarg;
 	  break;
