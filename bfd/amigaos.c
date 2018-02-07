@@ -1621,7 +1621,7 @@ amiga_write_object_contents (
   if (AMIGA_DATA(abfd)->IsLoadFile)
     {
       // remove .stab and .stabstr
-      for (q = abfd->sections, p = q->next; ; p = p->next)
+      for (q = abfd->sections, p = q->next; p; p = p->next)
 	{
 	  if (0 == strcmp (p->name, ".stab"))
 	    {
