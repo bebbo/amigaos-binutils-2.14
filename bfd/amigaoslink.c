@@ -448,6 +448,73 @@ get_relocated_section_contents (
 	}
     }
 
+  /*
+   * update the associated .stab if .stabstr
+   */
+  if (input_section->output_offset && 0 == strcmp(input_section->name, ".stabstr"))
+    {
+      sec_ptr s_txt = 0;
+      sec_ptr s_data = 0;
+      sec_ptr s_bss = 0;
+      sec_ptr s = input_bfd->sections;
+      while (s && s->next != input_section)
+	{
+	  if (0 == strcmp(s->name, ".text"))
+	    s_txt = s;
+	  else if (0 == strcmp(s->name, ".data"))
+	    s_data = s;
+	  if (0 == strcmp(s->name, ".bss"))
+	    s_bss = s;
+
+	  s = s->next;
+	}
+
+      if (s) {
+	  unsigned char * start = s->output_section->contents + s->output_offset;
+	  unsigned char * end = start + s->_raw_size;
+	  while (start < end)
+	    {
+	      // update the name
+	      unsigned offset = bfd_getb32(start);
+	      if (offset)
+		bfd_putb32(offset + input_section->output_offset, start);
+
+	      offset = bfd_getb32(start + 8);
+	      // update the value
+	      switch (start[4])
+	      {
+		case 4: //N_TEXT:
+		case 0x24: // N_FUN:
+// already handled via reloc
+//		case 0x64: //N_SO:
+//		case 0x44: // N_SLINE:
+		  if (s_txt)
+		    offset += s_txt->output_offset;
+		  break;
+		case 0x6: // N_DATA:
+		case 0x26: // N_STSYM:
+// already handled via reloc
+//		case 0x46: // N_DSLINE:
+		  if (s_data)
+		    offset += s_data->output_offset;
+		  break;
+		case 0x8: // N_BSS:
+		case 0x28: //N_LCSYM:
+// already handled via reloc
+//		case 0x48: // N_BSLINE:
+		  if (s_bss)
+		    offset += s_bss->output_offset;
+		  break;
+		default:
+		  break;
+	      }
+	      bfd_putb32(offset, start + 8);
+
+	      start += 12;
+	    }
+	}
+    }
+
   /* We're not relaxing the section, so just copy the size info.  */
   input_section->_cooked_size = input_section->_raw_size;
   input_section->reloc_done = TRUE;

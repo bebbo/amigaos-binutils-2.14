@@ -126,6 +126,18 @@
 #define BYTES_IN_WORD 4
 #include "aout/aout64.h" /* struct external_nlist */
 
+#ifndef PARAMS
+#define PARAMS(x) x
+#endif
+
+typedef struct aout_symbol {
+  asymbol symbol;
+  short desc;
+  char other;
+  unsigned char type;
+} aout_symbol_type;
+
+
 #ifndef alloca
 extern PTR alloca PARAMS ((size_t));
 #endif
@@ -161,6 +173,19 @@ typedef struct amiga_ardata_struct {
 
 /* AmigaOS doesn't like HUNK_SYMBOL with symbol names longer than 124 characters */
 #define MAX_NAME_SIZE 124
+
+
+aout_symbol_type  **
+amiga_load_stab_symbols (bfd *abfd);
+bfd_boolean
+aout_32_find_nearest_line (bfd *abfd, sec_ptr section, struct aout_symbol **symbols,
+     bfd_vma offset, const char **filename_ptr, const char **functionname_ptr,
+     unsigned int *line_ptr);
+bfd_boolean
+aout_32_translate_symbol_table (bfd *abfd, aout_symbol_type *in, struct external_nlist *ext,
+     bfd_size_type count, char *str, bfd_size_type strsize, bfd_boolean dynamic);
+
+
 
 static bfd_boolean amiga_reloc_long_p PARAMS ((unsigned long, bfd_boolean));
 static reloc_howto_type *howto_for_raw_reloc PARAMS ((unsigned long, bfd_boolean));
@@ -1061,6 +1086,16 @@ amiga_read_load (
 	}/* Of switch */
     }
 
+  /* read stab  */
+  if (get_long (abfd, &hunk_type) && hunk_type == HUNK_DEBUG)
+    {
+      unsigned long sz;
+      get_long (abfd, &sz) &&
+      bfd_seek(abfd, -4, SEEK_CUR) >= 0 &&
+      amiga_handle_cdb_hunk (abfd, hunk_type, -1, 0, sz);
+    }
+
+
   return TRUE;
 }/* Of amiga_read_load */
 
@@ -1574,7 +1609,7 @@ amiga_write_object_contents (
 {
   long datadata_relocs = 0, bss_size = 0, idx;
   int *index_map, max_hunk = -1;
-  sec_ptr data_sec, p, q;
+  sec_ptr data_sec, p, q, stab = 0, stabstr = 0;
   unsigned long i, n[5];
 
   /* Distinguish UNITS, LOAD Files
@@ -1585,52 +1620,46 @@ amiga_write_object_contents (
 
   if (AMIGA_DATA(abfd)->IsLoadFile)
     {
-      // shuffle .stab and .stabstr to end
-      for (q = abfd->sections, p = q->next; p != NULL; q = p, p = p->next)
+      // remove .stab and .stabstr
+      for (q = abfd->sections, p = q->next; ; p = p->next)
 	{
 	  if (0 == strcmp (p->name, ".stab"))
 	    {
-	      if (p->next)
-		{
-		  q->next = p->next;
-		  if (write_debug_hunk)
-		    {
-		      q = p->next;
-		      while (q->next)
-			q = q->next;
-		      q->next = p;
-		      p->next = 0;
-		    }
-		}
-	      else
-		q->next = 0;
-	      break;
+	      stab = p;
+	      q->next = p->next;
+	      if (!p->next)
+		break;
+	      continue;
 	    }
-	}
-      for (q = abfd->sections, p = q->next; p != NULL; q = p, p = p->next)
-	{
 	  if (0 == strcmp (p->name, ".stabstr"))
 	    {
-	      if (p->next)
-		{
-		  q->next = p->next;
-		  if (write_debug_hunk)
-		    {
-		      q = p->next;
-		      while (q->next)
-			q = q->next;
-		      q->next = p;
-		      p->next = 0;
-		    }
-		}
-	      else
-		q->next = 0;
-	      break;
+	      stabstr = p;
+	      q->next = p->next;
+	      if (!p->next)
+		break;
+	      continue;
 	    }
+	  q = p;
+	}
+      // q points to last section - patch stab section and append
+      if (write_debug_hunk && stab && stabstr)
+	{
+	  unsigned total = 12 + stab->_raw_size + stabstr->_raw_size;
+	  unsigned char * data = (unsigned char *)bfd_alloc(abfd, total);
+	  bfd_putb32(ZMAGIC, data);
+	  bfd_putb32(stab->_raw_size, data + 4);
+	  bfd_putb32(stabstr->_raw_size, data + 8);
+	  memcpy(data + 12, stab->contents, stab->_raw_size);
+	  memcpy(data + 12 + stab->_raw_size, stabstr->contents, stabstr->_raw_size);
+	  stab->_raw_size = stab->_cooked_size = total;
+	  stab->contents = data;
+	  q->next = stab;
+	  stab->next = 0;
 	}
       int n = 0;
       for (p = abfd->sections; p != NULL; p = p->next)
 	p->index = n++;
+      abfd->section_count = n;
     }
 
   index_map = bfd_alloc (abfd, abfd->section_count * sizeof(int));
@@ -1659,7 +1688,7 @@ amiga_write_object_contents (
 	      && !(amiga_base_relative && !strcmp (p->name, ".bss")))
 	    {
 	      /* don't count debug sections. */
-	      if (strcmp (p->name, ".stab") && strcmp (p->name, ".stabstr"))
+	      if (strcmp (p->name, ".stab"))
 		n[2]++;
 	    }
 	  else
@@ -2845,6 +2874,8 @@ amiga_slurp_symbol_table (
       if (bfd_bread (stabstrdata, astabstr->disk_size, abfd) != astabstr->disk_size)
 	return FALSE;
 
+      stabstr->contents = stabstrdata;
+
       unsigned char * stabdata = (unsigned char *) bfd_alloc (abfd, astab->disk_size);
       if (!stabdata)
 	return FALSE;
@@ -2852,6 +2883,8 @@ amiga_slurp_symbol_table (
 	return FALSE;
       if (bfd_bread (stabdata, astab->disk_size, abfd) != astab->disk_size)
 	return FALSE;
+
+      stab->contents = stabdata;
 
       {unsigned i; for (i = 0; i < astab->disk_size; i += 12)
 	{
@@ -3299,6 +3332,77 @@ amiga_sizeof_headers (
   return 0;
 }
 
+/*
+ * Load the stab symbols if both sections .stab and .stabstr exist.
+ * For Loadables use the stabs DEBUG section, if present
+ */
+aout_symbol_type  **
+amiga_load_stab_symbols (bfd *abfd)
+{
+  amiga_data_type *amiga_data = AMIGA_DATA(abfd);
+  if (amiga_data->stab_symbols)
+    return amiga_data->stab_symbols;
+
+  /* search the stab sections. */
+  unsigned char * stab = 0;
+  unsigned char * stabstr = 0;
+  sec_ptr s;
+  for (s = abfd->sections; s; s = s->next)
+    {
+      if (0 == strcmp(".text", s->name))
+	amiga_data->a.textsec = s;
+      else
+      if (0 == strcmp(".data", s->name))
+	amiga_data->a.datasec = s;
+      else
+      if (0 == strcmp(".bss", s->name))
+	amiga_data->a.bsssec = s;
+      else
+      if (0 == strcmp(".stab", s->name))
+	{
+	  amiga_data->symtab_size = s->_raw_size;
+	  stab = s->contents;
+	}
+      else
+      if (0 == strcmp(".stabstr", s->name))
+	{
+	  amiga_data->stringtab_size = s->_raw_size;
+	  stabstr = s->contents;
+	}
+    }
+
+  if (!stab || !stabstr)
+    {
+      if (!adata(abfd).sym_filepos || !adata(abfd).str_filepos)
+	return 0;
+
+      // executable - load the data now.
+      stab = (unsigned char *)bfd_alloc(abfd, amiga_data->symtab_size);
+      bfd_seek(abfd, adata(abfd).sym_filepos, SEEK_SET);
+      if (bfd_bread (stab, amiga_data->symtab_size, abfd) != amiga_data->symtab_size)
+	return 0;
+
+      stabstr = (unsigned char *)bfd_alloc(abfd, amiga_data->stringtab_size);
+      bfd_seek(abfd, adata(abfd).str_filepos, SEEK_SET);
+      if (bfd_bread (stabstr, amiga_data->stringtab_size, abfd) != amiga_data->stringtab_size)
+	return 0;
+    }
+
+  unsigned num = amiga_data->symtab_size / sizeof(struct external_nlist);
+  struct aout_symbol * asyms = (struct aout_symbol *)bfd_zalloc(abfd, num * sizeof(struct aout_symbol));
+  if (!aout_32_translate_symbol_table(abfd, asyms, (struct external_nlist *) stab, num, (char *)stabstr, amiga_data->stringtab_size, 0))
+    return 0;
+
+  struct aout_symbol ** ss = (struct aout_symbol **)bfd_alloc(abfd, (1 + num) * sizeof(struct aout_symbol  *));
+  unsigned i;
+  for (i = 0; i < num; ++i)
+    ss[i] = &asyms[i];
+  ss[num] = 0;
+
+  amiga_data->stab_symbols = ss;
+  return ss;
+}
+
 /* Provided a BFD, a section and an offset into the section, calculate
  and return the name of the source file and the line nearest to the
  wanted location.  */
@@ -3312,6 +3416,9 @@ amiga_find_nearest_line (
      const char **functionname_ptr ATTRIBUTE_UNUSED,
      unsigned int *line_ptr ATTRIBUTE_UNUSED)
 {
+  aout_symbol_type  **stab_symbols = amiga_load_stab_symbols(abfd);
+  if (stab_symbols)
+    return aout_32_find_nearest_line(abfd, section, stab_symbols, offset, filename_ptr, functionname_ptr, line_ptr);
   /* FIXME (see aoutx.h, for example) */
   return FALSE;
 }
@@ -3390,7 +3497,7 @@ amiga_slurp_armap (
 
   for (csym = defsyms; syms; syms = syms->next)
     {
-      unsigned long type, len, n;
+      unsigned long len, n;
       char *symblock;
 
 	if(csym >= defsyms + symcount)
@@ -3419,7 +3526,7 @@ amiga_slurp_armap (
 	
 	  symblock += 4;
 	  len = n & 0xffffff;
-	  type = (n >> 24) & 0xff;
+	  //type = (n >> 24) & 0xff;
 	  len <<= 2;
 	  csym->name = symblock;
 	  csym->name[len] = '\0';

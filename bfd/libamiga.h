@@ -146,12 +146,70 @@ struct amiga_data {
   sec_ptr bsssec;
   file_ptr sym_filepos;
   file_ptr str_filepos;
-  /* rest intentionally omitted */
+
+  /* Size of a relocation entry in external form.  */
+  unsigned reloc_entry_size;
+
+  /* Size of a symbol table entry in external form.  */
+  unsigned symbol_entry_size;
+
+  /* Page size - needed for alignment of demand paged files.  */
+  unsigned long page_size;
+
+  /* Segment size - needed for alignment of demand paged files.  */
+  unsigned long segment_size;
+
+  /* Zmagic disk block size - need to align the start of the text
+     section in ZMAGIC binaries.  Normally the same as page_size.  */
+  unsigned long zmagic_disk_block_size;
+
+  unsigned exec_bytes_size;
+  unsigned vma_adjusted : 1;
+
+  /* Used when a bfd supports several highly similar formats.  */
+  enum
+    {
+      default_format = 0,
+      /* Used on HP 9000/300 running HP/UX.  See hp300hpux.c.  */
+      gnu_encap_format,
+      /* Used on Linux, 386BSD, etc.  See include/aout/aout64.h.  */
+      q_magic_format
+    } subformat;
+
+  enum
+    {
+      undecided_magic = 0,
+      z_magic,
+      o_magic,
+      n_magic
+    } magic;
+
+  /* A buffer for find_nearest_line.  */
+  char *line_buf;
+
+  /* The external symbol information.  */
+  struct external_nlist *external_syms;
+  bfd_size_type external_sym_count;
+  bfd_window sym_window;
+  char *external_strings;
+  bfd_size_type external_string_size;
+  bfd_window string_window;
+  struct aout_link_hash_entry **sym_hashes;
+
+  /* A pointer for shared library information.  */
+  PTR dynamic_info;
+
+  /* A mapping from local symbols to offsets into the global offset
+     table, used when linking on SunOS.  This is indexed by the symbol
+     index.  */
+  bfd_vma *local_got_offsets;
+
 
   carsym *symdefs;		/* the symdef entries */
   symindex symdef_count;	/* how many there are */
 };
 
+struct aout_symbol;
 typedef struct amiga_data_struct {
   struct amiga_data a;
   unsigned long symtab_size;
@@ -162,6 +220,7 @@ typedef struct amiga_data_struct {
   /* The next two fields are set at final_link time (for the output bfd only) */
   bfd_boolean baserel;/* true if there is ___init_a4 in the global hash table */
   bfd_vma a4init;     /* cache the value for efficiency */
+  struct aout_symbol ** stab_symbols;
 } amiga_data_type;
 
 #define adata(bfd)	((bfd)->tdata.amiga_data->a)
