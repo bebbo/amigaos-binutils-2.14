@@ -60,6 +60,10 @@ extern PTR sbrk ();
 #endif
 #endif
 
+#ifndef PARAMS
+#define PARAMS(a) a
+#endif
+
 static void show_usage PARAMS ((FILE *));
 static void parse_args PARAMS ((int *, char ***));
 static void dump_statistics PARAMS ((void));
@@ -227,8 +231,8 @@ print_version_id ()
 }
 
 static void
-show_usage (stream)
-     FILE *stream;
+show_usage (
+     FILE *stream)
 {
   fprintf (stream, _("Usage: %s [option...] [asmfile...]\n"), myname);
 
@@ -348,9 +352,9 @@ Options:\n\
    md_parse_option definitions in config/tc-*.c.  */
 
 static void
-parse_args (pargc, pargv)
-     int *pargc;
-     char ***pargv;
+parse_args (
+     int *pargc,
+     char ***pargv)
 {
   int old_argc, new_argc;
   char **old_argv, **new_argv;
@@ -792,9 +796,9 @@ static long start_time;
 int main PARAMS ((int, char **));
 
 int
-main (argc, argv)
-     int argc;
-     char **argv;
+main (
+     int argc,
+     char **argv)
 {
   int macro_alternate;
   int macro_strip_at;
@@ -999,9 +1003,9 @@ dump_statistics ()
    may be a catenation of many 'physical' input files.  */
 
 static void
-perform_an_assembly_pass (argc, argv)
-     int argc;
-     char **argv;
+perform_an_assembly_pass (
+     int argc,
+     char **argv)
 {
   int saw_a_file = 0;
 #ifdef BFD_ASSEMBLER

@@ -543,15 +543,15 @@ remove_subsegs (head, seg, root, last)
 
 #ifdef BFD_ASSEMBLER
 static void
-cvt_frag_to_fill (sec, fragP)
-     segT sec ATTRIBUTE_UNUSED;
-     fragS *fragP;
+cvt_frag_to_fill (
+     segT sec ATTRIBUTE_UNUSED,
+     fragS *fragP)
 #else
 static void
-cvt_frag_to_fill (headersP, sec, fragP)
-     object_headers *headersP;
-     segT sec;
-     fragS *fragP;
+cvt_frag_to_fill (
+     object_headers *headersP,
+     segT sec,
+     fragS *fragP)
 #endif
 {
   switch (fragP->fr_type)

@@ -34,6 +34,10 @@
 #include "elf/m68k.h"
 #endif
 
+#ifndef PARAMS
+#define PARAMS(a) a
+#endif
+
 #ifndef TE_AMIGA
 #define TE_AMIGA 0
 #endif
@@ -41,8 +45,6 @@
 #ifndef OBJ_AMIGAHUNK
 #define OBJ_AMIGAHUNK 0
 #endif
-
-#define FLAG_SMALL_CODE (0 && flag_small_code)
 
 /* This string holds the chars that always start a comment.  If the
    pre-processor is disabled, these aren't very useful.  The macro
@@ -89,6 +91,8 @@ static int flag_short_refs;	/* -l option */
 static int flag_long_jumps;	/* -S option */
 static int flag_keep_pcrel;	/* --pcrel option.  */
 static int flag_small_code;	/* -sc option */
+
+#define FLAG_SMALL_CODE (0 && flag_small_code)
 
 #ifdef REGISTER_PREFIX_OPTIONAL
 int flag_reg_prefix_optional = REGISTER_PREFIX_OPTIONAL;
@@ -1078,8 +1082,8 @@ static struct hash_control *op_hash;
 /* Assemble an m68k instruction.  */
 
 static void
-m68k_ip (instring)
-     char *instring;
+m68k_ip (
+     char *instring)
 {
   register char *p;
   register struct m68k_op *opP;
@@ -3311,9 +3315,9 @@ install_gen_operand (mode, val)
  */
 
 static char *
-crack_operand (str, opP)
-     register char *str;
-     register struct m68k_op *opP;
+crack_operand (
+     register char *str,
+     register struct m68k_op *opP)
 {
   register int parens;
   register int c;
@@ -3641,8 +3645,8 @@ int m68k_aout_machtype = 2;
 #endif
 
 void
-md_assemble (str)
-     char *str;
+md_assemble (
+     char *str)
 {
   const char *er;
   short *fromP;
@@ -4168,8 +4172,8 @@ m68k_init_after_args ()
 /* This is called when a label is defined.  */
 
 void
-m68k_frob_label (sym)
-     symbolS *sym;
+m68k_frob_label (
+     symbolS *sym)
 {
   struct label_line *n;
 
@@ -4195,8 +4199,8 @@ m68k_flush_pending_output ()
    odd location.  */
 
 void
-m68k_frob_symbol (sym)
-     symbolS *sym;
+m68k_frob_symbol (
+     symbolS *sym)
 {
   if (S_GET_SEGMENT (sym) == reg_section
       && (int) S_GET_VALUE (sym) < 0)
@@ -4226,8 +4230,8 @@ m68k_frob_symbol (sym)
    pseudo-op.  */
 
 void
-m68k_mri_mode_change (on)
-     int on;
+m68k_mri_mode_change (
+     int on)
 {
   if (on)
     {
@@ -4270,10 +4274,10 @@ m68k_mri_mode_change (on)
    returned, or NULL on OK.  */
 
 char *
-md_atof (type, litP, sizeP)
-     char type;
-     char *litP;
-     int *sizeP;
+md_atof (
+     char type,
+     char *litP,
+     int *sizeP)
 {
   int prec;
   LITTLENUM_TYPE words[MAX_LITTLENUMS];
@@ -4324,19 +4328,19 @@ md_atof (type, litP, sizeP)
 }
 
 void
-md_number_to_chars (buf, val, n)
-     char *buf;
-     valueT val;
-     int n;
+md_number_to_chars (
+     char *buf,
+     valueT val,
+     int n)
 {
   number_to_chars_bigendian (buf, val, n);
 }
 
 void
-md_apply_fix3 (fixP, valP, seg)
-     fixS *fixP;
-     valueT *valP;
-     segT seg ATTRIBUTE_UNUSED;
+md_apply_fix3 (
+     fixS *fixP,
+     valueT *valP,
+     segT seg ATTRIBUTE_UNUSED)
 {
   offsetT val = *valP;
   addressT upper_limit;
@@ -4449,8 +4453,8 @@ md_apply_fix3 (fixP, valP, seg)
    MAGIC here. ..
    */
 static void
-md_convert_frag_1 (fragP)
-     register fragS *fragP;
+md_convert_frag_1 (
+     register fragS *fragP)
 {
   long disp;
   fixS *fixP;
@@ -4756,9 +4760,9 @@ md_convert_frag (abfd, sec, fragP)
    the frag list to be relaxed
    */
 int
-md_estimate_size_before_relax (fragP, segment)
-     register fragS *fragP;
-     segT segment;
+md_estimate_size_before_relax (
+     register fragS *fragP,
+     segT segment)
 {
   /* Handle SZ_UNDEF first, it can be changed to BYTE or SHORT.  */
   switch (fragP->fr_subtype)

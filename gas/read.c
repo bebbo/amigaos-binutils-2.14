@@ -501,9 +501,9 @@ static char *scrub_string;
 static char *scrub_string_end;
 
 static int
-scrub_from_string (buf, buflen)
-     char *buf;
-     int buflen;
+scrub_from_string (
+     char *buf,
+     int buflen)
 {
   int copy;
 
@@ -518,8 +518,8 @@ scrub_from_string (buf, buflen)
 /* We read the file, putting things into a web that represents what we
    have been reading.  */
 void
-read_a_source_file (name)
-     char *name;
+read_a_source_file (
+     char *name)
 {
   register char c;
   register char *s;		/* String of symbol, '\0' appended.  */

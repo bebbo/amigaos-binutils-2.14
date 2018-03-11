@@ -26,7 +26,7 @@ extern const pseudo_typeS md_pseudo_table[];
 
 extern const int md_reloc_size;	/* Size of a relocation record */
 
-char *md_atof PARAMS ((int what_statement_type, char *literalP, int *sizeP));
+char *md_atof PARAMS ((char what_statement_type, char *literalP, int *sizeP));
 #ifndef md_estimate_size_before_relax
 int md_estimate_size_before_relax PARAMS ((fragS * fragP, segT segment));
 #endif
