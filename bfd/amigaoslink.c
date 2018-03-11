@@ -142,55 +142,8 @@ static struct rel_chain * rel_jumps;
 static unsigned rel_jumps_count;
 static unsigned rel_jumps_max;
 
-/* This one is nearly identical to bfd_generic_get_relocated_section_contents
-   in reloc.c */
-bfd_byte *
-get_relocated_section_contents (
-     bfd *abfd,
-     struct bfd_link_info *link_info,
-     struct bfd_link_order *link_order,
-     bfd_byte *data,
-     bfd_boolean relocateable,
-     asymbol **symbols)
+static void insert_long_jumps(bfd * abfd, bfd * input_bfd, asection *input_section, struct bfd_link_order *link_order, bfd_byte *data)
 {
-  /* Get enough memory to hold the stuff.  */
-  bfd *input_bfd = link_order->u.indirect.section->owner;
-  asection *input_section = link_order->u.indirect.section;
-
-  long reloc_size = bfd_get_reloc_upper_bound (input_bfd, input_section);
-  arelent **reloc_vector = NULL;
-  long reloc_count;
-  bfd_reloc_status_type (*reloc_func)(bfd *, arelent *, PTR, sec_ptr,
-				      bfd *, char **);
-
-  DPRINT(5,("Entering get_rel_sec_cont\n"));
-
-  if (reloc_size < 0)
-    goto error_return;
-
-  if (bfd_get_flavour (input_bfd) == bfd_target_amiga_flavour)
-    reloc_func = amiga_perform_reloc;
-  else if (bfd_get_flavour (input_bfd) == bfd_target_aout_flavour)
-    reloc_func = aout_perform_reloc;
-  else
-    {
-      bfd_set_error (bfd_error_bad_value);
-      goto error_return;
-    }
-
-  reloc_vector = (arelent **) bfd_malloc ((bfd_size_type) reloc_size);
-  if (reloc_vector == NULL && reloc_size != 0)
-    goto error_return;
-
-  DPRINT(5,("GRSC: GetSecCont()\n"));
-  /* Read in the section.  */
-  if (!bfd_get_section_contents (input_bfd,
-				 input_section,
-				 (PTR) data,
-				 (bfd_vma) 0,
-				 input_section->_raw_size))
-    goto error_return;
-
   /**
    * Check here for to large pcrel relocs which are to large.
    * hack the current input_section:
@@ -453,67 +406,77 @@ get_relocated_section_contents (
    */
   if (input_section->output_offset && 0 == strcmp(input_section->name, ".stabstr"))
     {
-      sec_ptr s_txt = 0;
-      sec_ptr s_data = 0;
-      sec_ptr s_bss = 0;
       sec_ptr s = input_bfd->sections;
       while (s && s->next != input_section)
-	{
-	  if (0 == strcmp(s->name, ".text"))
-	    s_txt = s;
-	  else if (0 == strcmp(s->name, ".data"))
-	    s_data = s;
-	  if (0 == strcmp(s->name, ".bss"))
-	    s_bss = s;
-
 	  s = s->next;
-	}
 
       if (s) {
 	  unsigned char * start = s->output_section->contents + s->output_offset;
 	  unsigned char * end = start + s->_raw_size;
 	  while (start < end)
 	    {
-	      // update the name
+	      // update the name offset
 	      unsigned offset = bfd_getb32(start);
 	      if (offset)
 		bfd_putb32(offset + input_section->output_offset, start);
-
-	      offset = bfd_getb32(start + 8);
-	      // update the value
-	      switch (start[4])
-	      {
-		case 4: //N_TEXT:
-		case 0x24: // N_FUN:
-// already handled via reloc
-//		case 0x64: //N_SO:
-//		case 0x44: // N_SLINE:
-		  if (s_txt)
-		    offset += s_txt->output_offset;
-		  break;
-		case 0x6: // N_DATA:
-		case 0x26: // N_STSYM:
-// already handled via reloc
-//		case 0x46: // N_DSLINE:
-		  if (s_data)
-		    offset += s_data->output_offset;
-		  break;
-		case 0x8: // N_BSS:
-		case 0x28: //N_LCSYM:
-// already handled via reloc
-//		case 0x48: // N_BSLINE:
-		  if (s_bss)
-		    offset += s_bss->output_offset;
-		  break;
-		default:
-		  break;
-	      }
-	      bfd_putb32(offset, start + 8);
 
 	      start += 12;
 	    }
 	}
     }
+}
+
+
+/* This one is nearly identical to bfd_generic_get_relocated_section_contents
+   in reloc.c */
+bfd_byte *
+get_relocated_section_contents (
+     bfd *abfd,
+     struct bfd_link_info *link_info,
+     struct bfd_link_order *link_order,
+     bfd_byte *data,
+     bfd_boolean relocateable,
+     asymbol **symbols)
+{
+  /* Get enough memory to hold the stuff.  */
+  bfd *input_bfd = link_order->u.indirect.section->owner;
+  asection *input_section = link_order->u.indirect.section;
+
+  long reloc_size = bfd_get_reloc_upper_bound (input_bfd, input_section);
+  arelent **reloc_vector = NULL;
+  long reloc_count;
+  bfd_reloc_status_type (*reloc_func)(bfd *, arelent *, PTR, sec_ptr,
+				      bfd *, char **);
+
+  DPRINT(5,("Entering get_rel_sec_cont\n"));
+
+  if (reloc_size < 0)
+    goto error_return;
+
+  if (bfd_get_flavour (input_bfd) == bfd_target_amiga_flavour)
+    reloc_func = amiga_perform_reloc;
+  else if (bfd_get_flavour (input_bfd) == bfd_target_aout_flavour)
+    reloc_func = aout_perform_reloc;
+  else
+    {
+      bfd_set_error (bfd_error_bad_value);
+      goto error_return;
+    }
+
+  reloc_vector = (arelent **) bfd_malloc ((bfd_size_type) reloc_size);
+  if (reloc_vector == NULL && reloc_size != 0)
+    goto error_return;
+
+  DPRINT(5,("GRSC: GetSecCont()\n"));
+  /* Read in the section.  */
+  if (!bfd_get_section_contents (input_bfd,
+				 input_section,
+				 (PTR) data,
+				 (bfd_vma) 0,
+				 input_section->_raw_size))
+    goto error_return;
+
+  insert_long_jumps(abfd, input_bfd, input_section, link_order, data);
 
   /* We're not relaxing the section, so just copy the size info.  */
   input_section->_cooked_size = input_section->_raw_size;

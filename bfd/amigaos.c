@@ -130,20 +130,19 @@
 #define PARAMS(x) x
 #endif
 
-typedef struct aout_symbol {
-  asymbol symbol;
-  short desc;
-  char other;
-  unsigned char type;
-} aout_symbol_type;
-
-
 #ifndef alloca
 extern PTR alloca PARAMS ((size_t));
 #endif
 
 #define bfd_is_special_section(sec) \
   (bfd_is_abs_section(sec)||bfd_is_com_section(sec)||bfd_is_und_section(sec)||bfd_is_ind_section(sec))
+
+typedef struct aout_symbol {
+  asymbol symbol;
+  short desc;
+  char other;
+  unsigned char type;
+} aout_symbol_type;
 
 struct arch_syms {
   unsigned long offset; /* disk offset in the archive */
@@ -692,10 +691,10 @@ parse_archive_units (
 		  {unsigned i; for (i = 0; i < stab_size; i += 12)
 		    {
 		      unsigned str_offset = bfd_getb32 (stabdata + i);
-		      char type = stabdata[i + 4];
+		      char ctype = stabdata[i + 4];
 
-		      switch (type)
-			{
+                      switch (ctype)
+                        {
 			default:
 			  continue;
 
@@ -1094,7 +1093,6 @@ amiga_read_load (
       bfd_seek(abfd, -4, SEEK_CUR) >= 0 &&
       amiga_handle_cdb_hunk (abfd, hunk_type, -1, 0, sz);
     }
-
 
   return TRUE;
 }/* Of amiga_read_load */
@@ -1610,7 +1608,7 @@ amiga_write_object_contents (
   long datadata_relocs = 0, bss_size = 0, idx;
   int *index_map, max_hunk = -1;
   sec_ptr data_sec, p, q, stab = 0, stabstr = 0;
-  unsigned long i, n[5];
+  unsigned long n[5];
 
   /* Distinguish UNITS, LOAD Files
    Write out hunks+relocs+HUNK_EXT+HUNK_DEBUG (GNU format) */
@@ -1656,11 +1654,10 @@ amiga_write_object_contents (
 	  q->next = stab;
 	  stab->next = 0;
 	}
-      int n = 0;
+      int nn = 0;
       for (p = abfd->sections; p != NULL; p = p->next)
-	p->index = n++;
-      abfd->section_count = n;
-    }
+	p->index = nn++;
+   }
 
   index_map = bfd_alloc (abfd, abfd->section_count * sizeof(int));
   if (!index_map)
@@ -1720,7 +1717,7 @@ amiga_write_object_contents (
 
       for (p = abfd->sections; p != NULL; p = p->next)
 	{
-	  long extra = 0, i;
+	  long extra = 0, ii;
 
 	  if (index_map[p->index] < 0)
 	    continue;
@@ -1736,28 +1733,28 @@ amiga_write_object_contents (
 	  /* convert to a size in long words */
 	  n[0] = LONGSIZE(p->_raw_size + extra);
 
-	  i = amiga_per_section(p)->attribute;
-	  switch (i)
-	    {
+	  ii = amiga_per_section(p)->attribute;
+	  switch (ii)
+    {
 	    case MEMF_CHIP:
 	      n[0] |= HUNKF_CHIP;
-	      i = 1;
+	      ii = 1;
 	      break;
 	    case MEMF_FAST:
 	      n[0] |= HUNKF_FAST;
-	      i = 1;
+	      ii = 1;
 	      break;
 	    case 0: /* nothing */
-	      i = 1;
+	      ii = 1;
 	      break;
 	    default: /* special one */
 	      n[0] |= 0xc0000000;
-	      n[1] = i;
-	      i = 2;
+	      n[1] = ii;
+	      ii = 2;
 	      break;
 	    }/* Of switch */
 
-	  if (!write_longs (n, i, abfd))
+	  if (!write_longs (n, ii, abfd))
 	    return FALSE;
 	}/* Of for */
     }
@@ -1770,6 +1767,7 @@ amiga_write_object_contents (
       if (!write_longs (n, 1, abfd) || !write_name (abfd, abfd->filename, 0))
 	return FALSE;
 
+      unsigned i;
       for (i = 0; i < bfd_get_symcount(abfd); i++)
 	{
 	  asymbol *sym_p = abfd->outsymbols[i];
@@ -1819,7 +1817,7 @@ amiga_write_object_contents (
       extern bfd_boolean
       translate_to_native_sym_flags (bfd*, asymbol*, struct external_nlist*);
 
-      unsigned int offset = 4, symbols = 0, i;
+      unsigned int offset = 4, symbols = 0, ii;
       unsigned long str_size = 4; /* the first 4 bytes will be replaced with the length */
       asymbol *sym;
       sec_ptr s;
@@ -1834,10 +1832,10 @@ amiga_write_object_contents (
 				 bfd_asymbol_flavour (sym) == \
 				 bfd_target_aout_flavour))
 
-	  for (i = 0; i < bfd_get_symcount(abfd); i++)
+	  for (ii = 0; ii < bfd_get_symcount(abfd); ii++)
 	    {
-	      sym = abfd->outsymbols[i];
-	      /* NULL entries have been written already... */
+	      sym = abfd->outsymbols[ii];
+    /* NULL entries have been written already... */
 	      if (CAN_WRITE_OUTSYM(sym))
 		{
 		  str_size += strlen (sym->name) + 1;
@@ -1850,24 +1848,24 @@ amiga_write_object_contents (
 
 	  /* Now, set the .text, .data and .bss fields in the tdata struct
 	   because translate_to_native_sym_flags needs them... */
-	  for (i = 0, s = abfd->sections; s != NULL; s = s->next)
+	  for (ii = 0, s = abfd->sections; s != NULL; s = s->next)
 	    if (!strcmp (s->name, ".text"))
 	      {
-		i |= 1;
+		ii |= 1;
 		adata(abfd).textsec = s;
 	      }
 	    else if (!strcmp (s->name, ".data"))
 	      {
-		i |= 2;
+		ii |= 2;
 		adata(abfd).datasec = s;
 	      }
 	    else if (!strcmp (s->name, ".bss"))
 	      {
-		i |= 4;
+		ii |= 4;
 		adata(abfd).bsssec = s;
 	      }
 
-	  if (i != 7) /* section(s) missing... */
+	  if (ii != 7) /* section(s) missing... */
 	    {
 	      bfd_msg ("Missing section, debughunk not written");
 	      return TRUE;
@@ -1883,9 +1881,9 @@ amiga_write_object_contents (
 	    return FALSE;
 
 	  /* Write out symbols */
-	  for (i = 0; i < bfd_get_symcount(abfd); i++) /* Translate every symbol */
+	  for (ii = 0; ii < bfd_get_symcount(abfd); ii++) /* Translate every symbol */
 	    {
-	      sym = abfd->outsymbols[i];
+	      sym = abfd->outsymbols[ii];
 	      if (CAN_WRITE_OUTSYM(sym))
 		{
 		  amiga_symbol_type *t = amiga_symbol(sym);
@@ -1909,9 +1907,9 @@ amiga_write_object_contents (
 	  if (!write_longs (&str_size, 1, abfd))
 	    return FALSE;
 
-	  for (i = 0; i < bfd_get_symcount(abfd); i++)
+	  for (ii = 0; ii < bfd_get_symcount(abfd); ii++)
 	    {
-	      sym = abfd->outsymbols[i];
+	      sym = abfd->outsymbols[ii];
 	      if (CAN_WRITE_OUTSYM(sym))
 		{
 		  size_t len = strlen (sym->name) + 1;
@@ -1924,8 +1922,8 @@ amiga_write_object_contents (
 
 	  /* Write padding */
 	  n[0] = 0;
-	  i = (4 - (str_size & 3)) & 3;
-	  if (i && bfd_bwrite ((PTR) n, i, abfd) != i)
+	  ii = (4 - (str_size & 3)) & 3;
+	  if (ii && bfd_bwrite ((PTR) n, ii, abfd) != ii)
 	    return FALSE;
 
 	  /* write a HUNK_END here to finish the loadfile, or AmigaOS
@@ -2704,9 +2702,7 @@ static bfd_boolean amiga_write_symbols (
 }
 
 static bfd_boolean
-amiga_get_section_contents (
-     bfd *abfd,
-     sec_ptr section,
+amiga_get_section_contents (bfd *abfd, sec_ptr section,
   PTR location,
 file_ptr offset,
 bfd_size_type count)
@@ -2889,12 +2885,12 @@ amiga_slurp_symbol_table (
       {unsigned i; for (i = 0; i < astab->disk_size; i += 12)
 	{
 	  unsigned str_offset = bfd_getb32 (stabdata + i);
-	  char type = stabdata[i + 4];
+	  char ctype = stabdata[i + 4];
 	  unsigned value = bfd_getb32 (stabdata + i + 8);
 	  unsigned flags = BSF_GLOBAL;
 
-	  switch (type)
-	    {
+	  switch (ctype)
+            {
 	    default:
 	      continue;
 
@@ -3419,7 +3415,6 @@ amiga_find_nearest_line (
   aout_symbol_type  **stab_symbols = amiga_load_stab_symbols(abfd);
   if (stab_symbols)
     return aout_32_find_nearest_line(abfd, section, stab_symbols, offset, filename_ptr, functionname_ptr, line_ptr);
-  /* FIXME (see aoutx.h, for example) */
   return FALSE;
 }
 
@@ -3680,8 +3675,10 @@ bfd *abfd)
 	if (base != NULL)
 	name = base + 1;
 	for (base = name; *name; ++name)
-	if (*name == '/')
-	base = name + 1;
+	  {
+	    if (*name == '/')
+	      base = name + 1;
+	  }
 	if (*base != '\0')
 	  {
 	    char *const p = strrchr (ared->filename = base, '.');
