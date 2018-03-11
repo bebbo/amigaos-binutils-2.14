@@ -1089,9 +1089,9 @@ amiga_read_load (
   if (get_long (abfd, &hunk_type) && hunk_type == HUNK_DEBUG)
     {
       unsigned long sz;
-      get_long (abfd, &sz) &&
-      bfd_seek(abfd, -4, SEEK_CUR) >= 0 &&
-      amiga_handle_cdb_hunk (abfd, hunk_type, -1, 0, sz);
+      if (get_long (abfd, &sz))
+	if (bfd_seek(abfd, -4, SEEK_CUR) >= 0)
+	  amiga_handle_cdb_hunk (abfd, hunk_type, -1, 0, sz);
     }
 
   return TRUE;
