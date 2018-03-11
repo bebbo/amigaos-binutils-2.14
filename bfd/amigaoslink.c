@@ -151,6 +151,7 @@ static void insert_long_jumps(bfd * abfd, bfd * input_bfd, asection *input_secti
    * 2. perform relocation to the new jmp
    * 3. patch the relent: address and howto
    * 4. patch output_offsets of all input_sections starting behind current input_section
+   * 5. patch bfd_section_reloc_link_order entries since the linker already put an offset into these.
    *
    * Since the output offsets may change, a dry run is needed to precompute the new section sizes and offsets.
    *
@@ -197,7 +198,7 @@ static void insert_long_jumps(bfd * abfd, bfd * input_bfd, asection *input_secti
 
 		  DPRINT(10, ("%s: %d relocs\n", s->owner->filename, s->reloc_count));
 
-		  // reset _raw_size
+		  // reset rawsize
 		  unsigned cursize = s->_raw_size;
 		  s->_raw_size = (unsigned)s->userdata;
 
@@ -220,10 +221,6 @@ static void insert_long_jumps(bfd * abfd, bfd * input_bfd, asection *input_secti
 			continue;
 
 		      DPRINT(10, ("%s %d, ", src->symbol->name, dist));
-
-		      printf("INFO: using long jump from %s to %s:%s\n", s->owner->filename,
-				  src->symbol->section->owner->filename, src->symbol->name);
-		      fflush(stdout);
 
 		      // check last generated jumps
 		      if (rel_jumps)
@@ -274,18 +271,32 @@ static void insert_long_jumps(bfd * abfd, bfd * input_bfd, asection *input_secti
 		  if (delta == 0)
 		    continue;
 
+		  struct bfd_link_order * lo;
+
+		  // 5. also patch data's link statements with bfd_section_reloc_link_order, needed for CTs
+		  asection * xs = s->output_section;
+		  for(;xs;xs = xs->next)
+		    {
+		      for (lo = xs->link_order_head; lo; lo = lo->next)
+			{
+			  if (lo->type == bfd_section_reloc_link_order && lo->u.reloc.p->u.section == s->output_section
+			      && lo->u.reloc.p->addend >= s->_raw_size + s->output_offset)
+			    lo->u.reloc.p->addend += delta;
+			}
+		   }
+
+
 		  s->output_section->_raw_size += delta;
 		  s->_cooked_size = s->_raw_size;
 		  lo1->size += delta;
 
-		  // 4.
-		  struct bfd_link_order * lo = lo1->next;
-		  for (; lo; lo = lo->next)
+		  // 4. update output_offsets
+		  for (lo = lo1->next; lo; lo = lo->next)
 		    {
-		      asection * s = lo->u.indirect.section;
-		      if (0 == strcmp(s->name, ".text"))
+		      asection * ss = lo->u.indirect.section;
+		      if (0 == strcmp(ss->name, ".text"))
 			{
-			  s->output_offset += delta;
+			  ss->output_offset += delta;
 			  lo->offset += delta;
 			}
 		    }
@@ -295,6 +306,8 @@ static void insert_long_jumps(bfd * abfd, bfd * input_bfd, asection *input_secti
 	      if (input_section->output_section->_raw_size == totalsize)
 		break;
 	    }
+
+	  input_section->output_section->_cooked_size = input_section->output_section->_raw_size;
 
 	  // reset count
 	  rel_jumps_count = 0;
@@ -313,9 +326,9 @@ static void insert_long_jumps(bfd * abfd, bfd * input_bfd, asection *input_secti
 	}
 
       /**
-       *
+       * Create the jump tables.
        */
-      if (input_section->owner->xvec->flavour == bfd_target_amiga_flavour &&  input_section->reloc_count > 0)
+      if (input_section->owner->xvec->flavour == bfd_target_amiga_flavour && input_section->reloc_count > 0)
 	{
 	  amiga_reloc_type *src;
 	  for (src = (amiga_reloc_type *) input_section->relocation; src; src = src->next)
@@ -364,6 +377,9 @@ static void insert_long_jumps(bfd * abfd, bfd * input_bfd, asection *input_secti
 		    }
 		}
 
+	      printf("INFO: using long jump from %s to %s:%s\n", input_section->owner->filename,
+			  src->symbol->section->owner->filename, src->symbol->name);
+	      fflush(stdout);
 
 	      // 1. append a long jump
 	      signed endpos = (unsigned)input_section->userdata;
