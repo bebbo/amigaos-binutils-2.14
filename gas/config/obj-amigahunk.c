@@ -60,6 +60,7 @@ const pseudo_typeS obj_pseudo_table[] =
   {"sect", obj_amiga_section, 0},
   {"sect.s", obj_amiga_section, 0},
   {"swbeg", s_ignore, 0},
+  {"type", s_ignore, 0},
 
   /* other stuff */
   {"ABORT", s_abort, 0},
