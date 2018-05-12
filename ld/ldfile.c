@@ -75,24 +75,26 @@ static bfd_boolean is_sysrooted_pathname
   PARAMS ((const char *, bfd_boolean));
 
 /* Flavour support.  */
-
+#if 0
 static int flavors_cmp PARAMS ((const void *f1, const void *f2));
-
+#endif
 static int n_flavors, flavors_len;
 static char **flavors;
-
+#if 0
 static int
 flavors_cmp (f1, f2)
      const void *f1, *f2;
 {
   return strcmp (*(char **)f1, *(char **)f2);
 }
-
+#endif
 void
 ldfile_sort_flavors ()
 {
+#if 0
   if (n_flavors > 1)
     qsort ((void *) flavors, n_flavors, sizeof (char **), flavors_cmp);
+#endif
 }
 
 void
