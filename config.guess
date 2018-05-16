@@ -758,7 +758,7 @@ EOF
 	eval `$CC_FOR_BUILD -E $dummy.c 2>/dev/null | grep ^LIBC=`
 	echo ${UNAME_MACHINE}-unknown-freebsd`echo ${UNAME_RELEASE}|sed -e 's/[-(].*//'`${LIBC:+-$LIBC}
 	exit 0 ;;
-    i*:CYGWIN*:*)
+    [ix]*:CYGWIN*:*)
 	echo ${UNAME_MACHINE}-pc-cygwin
 	exit 0 ;;
     i*:MINGW*:*)
