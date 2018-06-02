@@ -1328,6 +1328,9 @@ typedef struct sec
      been done, then this value will be bigger.  */
   bfd_size_type _raw_size;
 
+  /* The compressed size of the section in octets.  */
+  bfd_size_type compressed_size;
+
   /* If this section is going to be output, then this value is the
      offset in *bytes* into the output section of the first byte in the
      input section (byte ==> smallest addressable unit on the

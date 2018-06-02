@@ -172,7 +172,7 @@ static void insert_long_jumps(bfd * abfd, bfd * input_bfd, asection *input_secti
 	      if (strcmp(s->name, ".text"))
 		continue;
 
-	      s->userdata = (void *)s->_raw_size;
+	      s->compressed_size = s->_raw_size;
 	    }
 
 	  /**
@@ -200,7 +200,7 @@ static void insert_long_jumps(bfd * abfd, bfd * input_bfd, asection *input_secti
 
 		  // reset rawsize
 		  unsigned cursize = s->_raw_size;
-		  s->_raw_size = (unsigned)s->userdata;
+		  s->_raw_size = s->compressed_size;
 
 
 		  amiga_reloc_type *src;
@@ -313,15 +313,15 @@ static void insert_long_jumps(bfd * abfd, bfd * input_bfd, asection *input_secti
 	  rel_jumps_count = 0;
 
 	  /* adjust memory for first section. */
-	  if ((unsigned)input_section->userdata < input_section->_raw_size)
+	  if (input_section->compressed_size < input_section->_raw_size)
 	    {
 	      PTR odata = data;
 	      data = bfd_alloc(abfd, input_section->_raw_size);
-	      memcpy(data, odata, (unsigned)input_section->userdata);
+	      memcpy(data, odata, input_section->compressed_size);
 	    }
 
 	  /**
-	   * Now all sections have its final offset and size plus the old size in userdata.
+	   * Now all sections have its final offset and size plus the old size in compressed_size.
 	   */
 	}
 
@@ -382,8 +382,8 @@ static void insert_long_jumps(bfd * abfd, bfd * input_bfd, asection *input_secti
 	      fflush(stdout);
 
 	      // 1. append a long jump
-	      signed endpos = (unsigned)input_section->userdata;
-	      input_section->userdata = (void *)((unsigned)input_section->userdata + 6);
+	      signed endpos = input_section->compressed_size;
+	      input_section->compressed_size += 6;
 	      data[endpos] = 0x4e;
 	      data[endpos + 1] = 0xf9;
 	      data[endpos + 2] = 0;
