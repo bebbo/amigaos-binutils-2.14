@@ -2971,6 +2971,10 @@ NAME(aout,find_nearest_line)
 	strcpy (buf, function);
       else
 	{
+    	  	 if (buf == NULL)
+    	  	 {
+    	  		 buf = (char *)malloc(strlen(function + 2));
+    	  	 }
 	  buf[0] = bfd_get_symbol_leading_char (abfd);
 	  strcpy (buf + 1, function);
 	}
